@@ -1,6 +1,6 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\Api\SettingsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuestionCategoryController;
@@ -22,7 +22,9 @@ Route::post('/login', [AuthController::class, 'login']);
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     // User
-    Route::get('/user', [AuthController::class, 'user']);
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Dashboard
