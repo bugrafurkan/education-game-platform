@@ -13,9 +13,11 @@ class GameController extends Controller
     /**
      * Display a listing of games.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $games = Game::with('creator')->latest()->paginate(20);
+        $perPage = $request->input('per_page', 10);
+        $games = Game::with('creator')->latest()->paginate($perPage);
+
         return response()->json($games);
     }
 

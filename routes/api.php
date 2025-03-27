@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\QuestionController;
 use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\AdvertisementController;
+use App\Http\Controllers\Api\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,6 +24,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // User
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Dashboard
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
     // Questions Categories
     Route::apiResource('categories', QuestionCategoryController::class);
@@ -50,6 +54,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Advertisements
     Route::apiResource('advertisements', AdvertisementController::class);
     Route::post('advertisements/upload-media', [AdvertisementController::class, 'uploadMedia']);
+
+    // Settings
+    Route::get('/settings', [SettingsController::class, 'index']);
+    Route::put('/settings', [SettingsController::class, 'update']);
 });
 
 // Public Game Access (For iframe embedding)

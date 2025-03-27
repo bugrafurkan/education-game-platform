@@ -14,9 +14,11 @@ class QuestionController extends Controller
     /**
      * Display a listing of questions.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $questions = Question::with(['category', 'answers'])->latest()->paginate(20);
+        $perPage = $request->input('per_page', 10);
+        $questions = Question::with(['category', 'answers'])->latest()->paginate($perPage);
+
         return response()->json($questions);
     }
 
@@ -166,41 +168,27 @@ class QuestionController extends Controller
      */
     public function filter(Request $request)
     {
-        $validated = $request->validate([
-            'type' => 'nullable|in:multiple_choice,true_false,qa',
-            'difficulty' => 'nullable|in:easy,medium,hard',
-            'category_id' => 'nullable|exists:question_categories,id',
-            'search' => 'nullable|string',
-        ]);
-
         $query = Question::with(['category', 'answers']);
 
-        // Apply filters
-        if (isset($validated['type'])) {
-            $query->where('question_type', $validated['type']);
+        if ($request->has('search')) {
+            $search = $request->input('search');
+            $query->where('question_text', 'LIKE', "%{$search}%");
         }
 
-        if (isset($validated['difficulty'])) {
-            $query->where('difficulty', $validated['difficulty']);
+        if ($request->has('type')) {
+            $query->where('question_type', $request->input('type'));
         }
 
-        if (isset($validated['category_id'])) {
-            $query->where('category_id', $validated['category_id']);
+        if ($request->has('difficulty')) {
+            $query->where('difficulty', $request->input('difficulty'));
         }
 
-        // Apply search
-        if (isset($validated['search']) && !empty($validated['search'])) {
-            $searchTerm = $validated['search'];
-            $query->where(function($q) use ($searchTerm) {
-                $q->where('question_text', 'LIKE', "%{$searchTerm}%")
-                    ->orWhereHas('answers', function($q) use ($searchTerm) {
-                        $q->where('answer_text', 'LIKE', "%{$searchTerm}%");
-                    });
-            });
+        if ($request->has('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
         }
 
-        // Paginate results
-        $questions = $query->latest()->paginate(20);
+        $perPage = $request->input('per_page', 10);
+        $questions = $query->latest()->paginate($perPage);
 
         return response()->json($questions);
     }
@@ -211,18 +199,12 @@ class QuestionController extends Controller
     public function uploadImage(Request $request)
     {
         $request->validate([
-            'image' => 'required|file|image|max:5120', // 5MB max
+            'image' => 'required|image|max:2048', // 2MB max
         ]);
 
-        $file = $request->file('image');
-        $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
+        $path = $request->file('image')->store('public/questions');
+        $url = Storage::url($path);
 
-        // Store the file
-        $path = $file->storeAs('public/question-images', $filename);
-
-        // Return the URL
-        return response()->json([
-            'url' => Storage::url($path)
-        ]);
+        return response()->json(['url' => $url]);
     }
 }
