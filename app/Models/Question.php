@@ -21,6 +21,7 @@ class Question extends Model
         'difficulty',
         'image_path',
         'metadata',
+        'user_id',
     ];
 
     /**
@@ -64,6 +65,11 @@ class Question extends Model
     public function correctAnswer()
     {
         return $this->answers()->where('is_correct', true)->first();
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**

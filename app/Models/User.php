@@ -66,4 +66,12 @@ class User extends Authenticatable
     {
         return $this->role === 'admin';
     }
+
+    /**
+     * Kullanıcının eklediği tüm sorular
+     */
+    public function questions()
+    {
+        return $this->hasMany(Question::class);
+    }
 }

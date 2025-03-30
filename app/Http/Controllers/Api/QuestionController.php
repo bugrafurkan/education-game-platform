@@ -8,6 +8,7 @@ use App\Models\Answer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 class QuestionController extends Controller
 {
@@ -17,7 +18,7 @@ class QuestionController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10);
-        $questions = Question::with(['category', 'answers'])->latest()->paginate($perPage);
+        $questions = Question::with(['category', 'answers', 'user:id,name,email'])->latest()->paginate($perPage);
 
         return response()->json($questions);
     }
@@ -40,7 +41,10 @@ class QuestionController extends Controller
             'answers.*.image_path' => 'nullable|string',
         ]);
 
-        // Create the question
+        // Oturum açmış kullanıcının ID'sini al
+        $userId = Auth::id();
+
+        // Create the question with user_id
         $question = Question::create([
             'category_id' => $validated['category_id'],
             'question_text' => $validated['question_text'],
@@ -48,6 +52,7 @@ class QuestionController extends Controller
             'difficulty' => $validated['difficulty'],
             'image_path' => $validated['image_path'] ?? null,
             'metadata' => $validated['metadata'] ?? null,
+            'user_id' => $userId, // Kullanıcı ID'sini ekle
         ]);
 
         // Create the answers
@@ -62,7 +67,7 @@ class QuestionController extends Controller
 
         // Return the question with relations
         return response()->json(
-            Question::with(['category', 'answers'])->find($question->id),
+            Question::with(['category', 'answers', 'user:id,name,email'])->find($question->id),
             201
         );
     }
@@ -72,7 +77,7 @@ class QuestionController extends Controller
      */
     public function show(Question $question)
     {
-        $question->load(['category', 'answers']);
+        $question->load(['category', 'answers', 'user:id,name,email']);
         return response()->json($question);
     }
 
@@ -94,6 +99,9 @@ class QuestionController extends Controller
             'answers.*.is_correct' => 'required|boolean',
             'answers.*.image_path' => 'nullable|string',
         ]);
+
+        // Sorunun kullanıcı ID'si değiştirilmemeli, bu yüzden user_id'yi güncelleme kısmına eklemiyoruz
+        // Bu sayede kullanıcılar başka kullanıcıların sorularını sahiplenemezler
 
         // Update the question
         $question->update([
@@ -141,7 +149,7 @@ class QuestionController extends Controller
         }
 
         // Return the updated question
-        $question->load(['category', 'answers']);
+        $question->load(['category', 'answers', 'user:id,name,email']);
         return response()->json($question);
     }
 
@@ -150,6 +158,14 @@ class QuestionController extends Controller
      */
     public function destroy(Question $question)
     {
+        // Sadece admin veya soruyu oluşturan kullanıcı soruyu silebilir
+        $currentUserId = Auth::id();
+        if (!Auth::user()->isAdmin() && $question->user_id !== $currentUserId) {
+            return response()->json([
+                'message' => 'You are not authorized to delete this question'
+            ], 403);
+        }
+
         // Check if the question is used in any game
         if ($question->games()->count() > 0) {
             return response()->json([
@@ -168,7 +184,7 @@ class QuestionController extends Controller
      */
     public function filter(Request $request)
     {
-        $query = Question::with(['category', 'answers']);
+        $query = Question::with(['category', 'answers', 'user:id,name,email']);
 
         if ($request->has('search')) {
             $search = $request->input('search');
@@ -187,8 +203,28 @@ class QuestionController extends Controller
             $query->where('category_id', $request->input('category_id'));
         }
 
+        if ($request->has('user_id')) {
+            $query->where('user_id', $request->input('user_id'));
+        }
+
         $perPage = $request->input('per_page', 10);
         $questions = $query->latest()->paginate($perPage);
+
+        return response()->json($questions);
+    }
+
+    /**
+     * Get questions created by the authenticated user.
+     */
+    public function myQuestions(Request $request)
+    {
+        $userId = Auth::id();
+        $perPage = $request->input('per_page', 10);
+
+        $questions = Question::with(['category', 'answers'])
+            ->where('user_id', $userId)
+            ->latest()
+            ->paginate($perPage);
 
         return response()->json($questions);
     }

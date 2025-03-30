@@ -19,6 +19,7 @@ return new class extends Migration
             $table->enum('difficulty', ['easy', 'medium', 'hard'])->default('medium');
             $table->string('image_path')->nullable(); // Soru için resim
             $table->json('metadata')->nullable(); // Ek özellikler için
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
         });
     }
