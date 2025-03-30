@@ -6,130 +6,100 @@ use App\Http\Controllers\Controller;
 use App\Models\Advertisement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class AdvertisementController extends Controller
 {
     /**
-     * Display a listing of advertisements.
+     * Tüm reklamları listele
      */
     public function index()
     {
-        $advertisements = Advertisement::latest()->paginate(20);
+        $advertisements = Advertisement::orderBy('created_at', 'desc')->get();
         return response()->json($advertisements);
     }
 
     /**
-     * Store a newly created advertisement.
+     * Yeni bir reklam ekle
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'type' => 'required|in:banner,video',
-            'media_path' => 'required|string',
-            'target_grade' => 'nullable|string|max:50',
-            'target_subject' => 'nullable|string|max:50',
-            'target_game_type' => 'nullable|string|in:jeopardy,wheel',
-            'link_url' => 'nullable|string|url',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
-            'is_active' => 'nullable|boolean',
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:image,video',
+            'file' => 'required|file|max:20480', // 20MB maksimum dosya boyutu
         ]);
 
-        $advertisement = Advertisement::create($validated);
+        // Dosya türünü kontrol et
+        $file = $request->file('file');
+        $fileType = $request->type;
+        $allowedMimeTypes = $fileType === 'image'
+            ? ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml']
+            : ['video/mp4', 'video/webm', 'video/ogg'];
+
+        if (!in_array($file->getMimeType(), $allowedMimeTypes)) {
+            return response()->json([
+                'message' => 'Geçersiz dosya türü. Lütfen ' .
+                    ($fileType === 'image' ? 'bir görsel' : 'bir video') .
+                    ' dosyası yükleyin.'
+            ], 422);
+        }
+
+        // Dosyayı kaydet
+        $path = $file->store('advertisements', 'public');
+        $url = Storage::url($path);
+
+        // Reklam kaydını oluştur
+        $advertisement = Advertisement::create([
+            'name' => $request->name,
+            'type' => $request->type,
+            'file_path' => $path,
+            'file_url' => $url,
+            'is_active' => true,
+        ]);
 
         return response()->json($advertisement, 201);
     }
 
     /**
-     * Display the specified advertisement.
+     * Belirli bir reklamı görüntüle
      */
-    public function show(Advertisement $advertisement)
+    public function show($id)
     {
+        $advertisement = Advertisement::findOrFail($id);
         return response()->json($advertisement);
     }
 
     /**
-     * Update the specified advertisement.
+     * Bir reklamı güncelle
      */
-    public function update(Request $request, Advertisement $advertisement)
+    public function update(Request $request, $id)
     {
-        $validated = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
-            'type' => 'sometimes|required|in:banner,video',
-            'media_path' => 'sometimes|required|string',
-            'target_grade' => 'nullable|string|max:50',
-            'target_subject' => 'nullable|string|max:50',
-            'target_game_type' => 'nullable|string|in:jeopardy,wheel',
-            'link_url' => 'nullable|string|url',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
-            'is_active' => 'nullable|boolean',
+        $advertisement = Advertisement::findOrFail($id);
+
+        $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'is_active' => 'sometimes|boolean',
         ]);
 
-        $advertisement->update($validated);
+        $advertisement->update($request->only(['name', 'is_active']));
 
         return response()->json($advertisement);
     }
 
     /**
-     * Remove the specified advertisement.
+     * Bir reklamı sil
      */
-    public function destroy(Advertisement $advertisement)
+    public function destroy($id)
     {
+        $advertisement = Advertisement::findOrFail($id);
+
+        // Dosyayı sil
+        if (Storage::exists($advertisement->file_path)) {
+            Storage::delete($advertisement->file_path);
+        }
+
         $advertisement->delete();
 
         return response()->json(null, 204);
-    }
-
-    /**
-     * Upload advertisement media (banner image or video).
-     */
-    public function uploadMedia(Request $request)
-    {
-        $request->validate([
-            'type' => 'required|in:banner,video',
-            'media' => 'required|file|max:10240', // 10MB max
-        ]);
-
-        $file = $request->file('media');
-
-        // Validate file type based on advertisement type
-        if ($request->type === 'banner') {
-            $request->validate([
-                'media' => 'image|mimes:jpeg,png,jpg,svg',
-            ]);
-
-            $folder = 'ads-banners';
-        } else {
-            $request->validate([
-                'media' => 'mimetypes:video/mp4',
-            ]);
-
-            $folder = 'ads-videos';
-        }
-
-        $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-
-        // Store the file
-        $path = $file->storeAs("public/{$folder}", $filename);
-
-        // Return the URL
-        return response()->json([
-            'url' => Storage::url($path)
-        ]);
-    }
-
-    /**
-     * Get active advertisements for a game.
-     */
-    public function getActiveAds($grade = null, $subject = null, $gameType = null)
-    {
-        $ads = Advertisement::active()
-            ->targeted($grade, $subject, $gameType)
-            ->get();
-
-        return response()->json($ads);
     }
 }

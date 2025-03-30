@@ -58,8 +58,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('advertisements/upload-media', [AdvertisementController::class, 'uploadMedia']);
 
     // Settings
-    Route::get('/settings', [SettingsController::class, 'index']);
-    Route::put('/settings', [SettingsController::class, 'update']);
+    //Route::get('/settings', [SettingsController::class, 'index']);
+    //Route::put('/settings', [SettingsController::class, 'update']);
+    Route::get('/settings', [App\Http\Controllers\Api\SettingsController::class, 'index']);
+    Route::put('/settings', [App\Http\Controllers\Api\SettingsController::class, 'update']);
+    Route::post('/settings/upload', [App\Http\Controllers\Api\SettingsController::class, 'uploadAd']);
+
+    // Reklam yönetimi için endpoint'ler
+    Route::apiResource('advertisements', App\Http\Controllers\Api\AdvertisementController::class);
+
 });
 
 // Public Game Access (For iframe embedding)
