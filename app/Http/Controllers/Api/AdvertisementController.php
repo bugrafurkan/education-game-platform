@@ -102,4 +102,23 @@ class AdvertisementController extends Controller
 
         return response()->json(null, 204);
     }
+    /**
+     * Aktif reklamları getir (oyunlar için)
+     *
+     */
+    public function getActiveAds($grade = null, $subject = null, $gameType = null)
+    {
+        // Sadece aktif reklamları filtrele
+        $advertisements = Advertisement::where('is_active', true);
+
+        // Eğer tip belirtilmişse (image/video), ona göre filtrele
+        if ($gameType && in_array($gameType, ['image', 'video'])) {
+            $advertisements->where('type', $gameType);
+        }
+
+        // En son eklenenler ilk başta olacak şekilde sırala
+        $advertisements = $advertisements->orderBy('created_at', 'desc')->get();
+
+        return response()->json($advertisements);
+    }
 }

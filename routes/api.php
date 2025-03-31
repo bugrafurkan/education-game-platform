@@ -39,6 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('questions', QuestionController::class);
     Route::get('questions/filter', [QuestionController::class, 'filter']);
     Route::post('questions/upload-image', [QuestionController::class, 'uploadImage']);
+    Route::get('/users/{userId}/games/{gameId}/questions', [QuestionController::class, 'getQuestionsByUserAndGame']);
+    Route::get('/my-questions', [QuestionController::class, 'myQuestions']);
 
     // Games
     Route::apiResource('games', GameController::class);

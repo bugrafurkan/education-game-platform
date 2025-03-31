@@ -243,4 +243,26 @@ class QuestionController extends Controller
 
         return response()->json(['url' => $url]);
     }
+
+    /**
+     * Belirli bir kullanıcı ve oyun için soruları getir
+     */
+    public function getQuestionsByUserAndGame(Request $request, $userId, $gameId)
+    {
+        // Kullanıcının varlığını kontrol et
+        $user = User::findOrFail($userId);
+
+        // Oyunun varlığını kontrol et
+        $game = Game::findOrFail($gameId);
+
+        // Kullanıcının eklediği ve bu oyuna dahil edilmiş soruları getir
+        $questions = Question::with(['category', 'answers', 'user:id,name,email'])
+            ->where('user_id', $userId)
+            ->whereHas('games', function($query) use ($gameId) {
+                $query->where('games.id', $gameId);
+            })
+            ->get();
+
+        return response()->json($questions);
+    }
 }
