@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\QuestionGroupController;
 use App\Http\Controllers\Api\SettingsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -70,6 +71,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reklam yönetimi için endpoint'ler
     Route::apiResource('advertisements', App\Http\Controllers\Api\AdvertisementController::class);
 
+    // Question Groups
+    Route::apiResource('question-groups', QuestionGroupController::class);
+    Route::get('question-groups/code/{code}', [QuestionGroupController::class, 'getByCode']);
+    Route::get('eligible-questions', [QuestionGroupController::class, 'getEligibleQuestions']);
 });
 
 // Public Game Access (For iframe embedding)
