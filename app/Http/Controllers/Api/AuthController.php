@@ -84,4 +84,70 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Logged out successfully']);
     }
+
+    public function listUsers()
+    {
+        // Sadece admin erişebilsin
+        if (Auth::user()->role !== 'admin' && Auth::user()->role !== 'editor') {
+            return response()->json(['message' => 'Yetkisiz erişim'], 403);
+        }
+
+        $users = User::all();
+        return response()->json($users);
+    }
+
+    public function deleteUser( $id)
+    {
+        if (Auth::user()->role !== 'admin' && Auth::user()->role !== 'editor') {
+            return response()->json(['message' => 'Yetkisiz erişim'], 403);
+        }
+
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json(['message' => 'Kullanıcı bulunamadı'], 404);
+        }
+
+        $user->delete();
+        return response()->json(['message' => 'Kullanıcı silindi']);
+    }
+
+    public function  getUser( $id )
+    {
+        $user = User::find($id);
+        return response()->json($user);
+    }
+
+    public function updateUser(Request $request, $id)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . $id,
+            'role' => 'required|string|in:admin,editor,viewer',
+            'password' => ['nullable', 'string', 'min:8'],
+        ]);
+
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json(['message' => 'Kullanıcı bulunamadı'], 404);
+        }
+
+        $user->name = $request->name;
+        $user->email = $request->email;
+        $user->role = $request->role;
+
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->password);
+        }
+
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kullanıcı güncellendi',
+            'user' => $user
+        ]);
+    }
+
+
 }

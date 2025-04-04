@@ -29,6 +29,11 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    Route::get('/users', [AuthController::class, 'listUsers']);
+    Route::get('/user/{id}', [AuthController::class, 'getUser']);
+    Route::delete('/users/{id}', [AuthController::class, 'deleteUser']);
+    Route::put('/user-update/{id}', [AuthController::class, 'updateUser']);
+
     // Dashboard
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 

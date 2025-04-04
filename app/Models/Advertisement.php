@@ -15,6 +15,8 @@ class Advertisement extends Model
         'file_path',
         'file_url',
         'is_active',
+        'grade',
+        'subject',
     ];
 
     protected $casts = [

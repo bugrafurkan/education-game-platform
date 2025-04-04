@@ -27,6 +27,8 @@ class AdvertisementController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|in:image,video',
             'file' => 'required|file|max:20480', // 20MB maksimum dosya boyutu
+            'grade' => 'nullable|string|max:100',
+            'subject' => 'nullable|string|max:100',
         ]);
 
         // Dosya türünü kontrol et
@@ -55,6 +57,8 @@ class AdvertisementController extends Controller
             'file_path' => $path,
             'file_url' => $url,
             'is_active' => true,
+            'grade' => $request->grade,
+            'subject' => $request->subject,
         ]);
 
         return response()->json($advertisement, 201);
@@ -79,12 +83,15 @@ class AdvertisementController extends Controller
         $request->validate([
             'name' => 'sometimes|string|max:255',
             'is_active' => 'sometimes|boolean',
+            'grade' => 'nullable|string|max:100',
+            'subject' => 'nullable|string|max:100',
         ]);
 
-        $advertisement->update($request->only(['name', 'is_active']));
+        $advertisement->update($request->only(['name', 'is_active', 'grade', 'subject']));
 
         return response()->json($advertisement);
     }
+
 
     /**
      * Bir reklamı sil
@@ -108,17 +115,23 @@ class AdvertisementController extends Controller
      */
     public function getActiveAds($grade = null, $subject = null, $gameType = null)
     {
-        // Sadece aktif reklamları filtrele
         $advertisements = Advertisement::where('is_active', true);
 
-        // Eğer tip belirtilmişse (image/video), ona göre filtrele
         if ($gameType && in_array($gameType, ['image', 'video'])) {
             $advertisements->where('type', $gameType);
         }
 
-        // En son eklenenler ilk başta olacak şekilde sırala
-        $advertisements = $advertisements->orderBy('created_at', 'desc')->get();
+        if ($grade) {
+            $advertisements->where('grade', $grade);
+        }
 
-        return response()->json($advertisements);
+        if ($subject) {
+            $advertisements->where('subject', $subject);
+        }
+
+        return response()->json(
+            $advertisements->orderBy('created_at', 'desc')->get()
+        );
     }
+
 }
