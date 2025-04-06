@@ -135,4 +135,43 @@ class SettingsController extends Controller
 
         return $this->index();
     }
+
+    public function uploadLogo(Request $request)
+    {
+        $request->validate([
+            'logo_file' => 'required|file|image|max:2048', // 2MB maksimum dosya boyutu
+        ]);
+
+        // Dosya yükleme işlemi
+        if ($request->hasFile('logo_file')) {
+            $file = $request->file('logo_file');
+
+            // Eski logoyu sil (eğer varsa)
+            $oldFilePath = Setting::where('category', 'general')
+                ->where('key', 'logo_path')
+                ->value('value');
+
+            if ($oldFilePath && Storage::exists($oldFilePath)) {
+                Storage::delete($oldFilePath);
+            }
+
+            // Yeni dosyayı kaydet
+            $path = $file->store('logos', 'public');
+
+            // Dosya yolunu kaydet
+            Setting::updateOrCreate(
+                ['category' => 'general', 'key' => 'logo_path'],
+                ['value' => $path]
+            );
+
+            // Dosyanın URL'ini kaydet
+            $url = Storage::url($path);
+            Setting::updateOrCreate(
+                ['category' => 'general', 'key' => 'logo_url'],
+                ['value' => $url]
+            );
+        }
+
+        return $this->index();
+    }
 }

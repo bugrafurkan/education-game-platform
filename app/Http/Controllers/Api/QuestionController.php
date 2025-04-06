@@ -207,11 +207,37 @@ class QuestionController extends Controller
             $query->where('user_id', $request->input('user_id'));
         }
 
+        // Yeni filtreler - kategori ilişkisinden gelenler
+        if ($request->has('grade')) {
+            $query->whereHas('category', fn($q) =>
+            $q->where('grade', $request->input('grade'))
+            );
+        }
+
+        if ($request->has('subject')) {
+            $query->whereHas('category', fn($q) =>
+            $q->where('subject', $request->input('subject'))
+            );
+        }
+
+        if ($request->has('unit')) {
+            $query->whereHas('category', fn($q) =>
+            $q->where('unit', $request->input('unit'))
+            );
+        }
+
+        if ($request->has('konu')) {
+            $query->whereHas('category', fn($q) =>
+            $q->where('description', 'LIKE', '%' . $request->input('konu') . '%')
+            );
+        }
+
         $perPage = $request->input('per_page', 10);
         $questions = $query->latest()->paginate($perPage);
 
         return response()->json($questions);
     }
+
 
     /**
      * Get questions created by the authenticated user.

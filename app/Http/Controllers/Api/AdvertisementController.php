@@ -29,6 +29,9 @@ class AdvertisementController extends Controller
             'file' => 'required|file|max:20480', // 20MB maksimum dosya boyutu
             'grade' => 'nullable|string|max:100',
             'subject' => 'nullable|string|max:100',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+
         ]);
 
         // Dosya türünü kontrol et
@@ -59,6 +62,8 @@ class AdvertisementController extends Controller
             'is_active' => true,
             'grade' => $request->grade,
             'subject' => $request->subject,
+            'start_date' => $validated['start_date'] ?? null,
+            'end_date' => $validated['end_date'] ?? null,
         ]);
 
         return response()->json($advertisement, 201);
@@ -80,14 +85,16 @@ class AdvertisementController extends Controller
     {
         $advertisement = Advertisement::findOrFail($id);
 
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'is_active' => 'sometimes|boolean',
             'grade' => 'nullable|string|max:100',
             'subject' => 'nullable|string|max:100',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
-        $advertisement->update($request->only(['name', 'is_active', 'grade', 'subject']));
+        $advertisement->update($validated);
 
         return response()->json($advertisement);
     }

@@ -17,6 +17,8 @@ class Advertisement extends Model
         'is_active',
         'grade',
         'subject',
+        'start_date',
+        'end_date',
     ];
 
     protected $casts = [
