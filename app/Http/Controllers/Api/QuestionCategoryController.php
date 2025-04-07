@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -8,83 +7,100 @@ use Illuminate\Http\Request;
 
 class QuestionCategoryController extends Controller
 {
-    /**
-     * Display a listing of categories.
-     */
     public function index()
     {
-        $categories = QuestionCategory::orderBy('grade')->orderBy('subject')->orderBy('name')->get();
+        $categories = QuestionCategory::with(['grade', 'subject', 'unit', 'topic'])->get();
         return response()->json($categories);
     }
 
-    /**
-     * Store a newly created category.
-     */
+    public function show(QuestionCategory $category)
+    {
+        $category->load(['grade', 'subject', 'unit', 'topic']);
+        return response()->json($category);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'grade' => 'required|string|max:50',
-            'subject' => 'required|string|max:50',
-            'unit' => 'nullable|string|max:100',
-            'description' => 'nullable|string',
+            'grade_id' => 'required|exists:grades,id',
+            'subject_id' => 'required|exists:subjects,id',
+            'unit_id' => 'required|exists:units,id',
+            'topic_id' => 'required|exists:topics,id',
         ]);
 
         $category = QuestionCategory::create($validated);
-
         return response()->json($category, 201);
     }
 
-    /**
-     * Display the specified category.
-     */
-    public function show(QuestionCategory $category)
-    {
-        return response()->json($category);
-    }
-
-    /**
-     * Update the specified category.
-     */
     public function update(Request $request, QuestionCategory $category)
     {
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'grade' => 'sometimes|required|string|max:50',
-            'subject' => 'sometimes|required|string|max:50',
-            'unit' => 'nullable|string|max:100',
-            'description' => 'nullable|string',
+            'name' => 'sometimes|string|max:255',
+            'grade_id' => 'sometimes|exists:grades,id',
+            'subject_id' => 'sometimes|exists:subjects,id',
+            'unit_id' => 'sometimes|exists:units,id',
+            'topic_id' => 'sometimes|exists:topics,id',
         ]);
 
         $category->update($validated);
-
         return response()->json($category);
     }
 
-    /**
-     * Remove the specified category.
-     */
     public function destroy(QuestionCategory $category)
     {
-        // Check if the category has questions
-        if ($category->questions()->count() > 0) {
+        // Eğer kategoriye ait soru varsa silinemez
+        if ($category->questions()->exists()) {
             return response()->json([
-                'message' => 'Cannot delete category with questions'
+                'message' => 'Bu kategoriye ait sorular bulunduğu için silinemez.'
             ], 400);
         }
 
         $category->delete();
-
         return response()->json(null, 204);
     }
 
-    /**
-     * Filter categories by grade and subject
-     */
-    public function filter($grade = null, $subject = null)
+    public function filter($gradeId = null, $subjectId = null)
     {
-        $categories = QuestionCategory::filter($grade, $subject)->get();
+        $query = QuestionCategory::with(['grade', 'subject', 'unit', 'topic']);
 
+        if ($gradeId) {
+            $query->where('grade_id', $gradeId);
+        }
+
+        if ($subjectId) {
+            $query->where('subject_id', $subjectId);
+        }
+
+        return response()->json($query->get());
+    }
+
+    // UNITY tarafı
+    public function unityIndex()
+    {
+        $categories = QuestionCategory::with(['grade', 'subject', 'unit', 'topic'])->get();
         return response()->json($categories);
     }
+
+    public function unityShow(QuestionCategory $category)
+    {
+        $category->load(['grade', 'subject', 'unit', 'topic']);
+        return response()->json($category);
+    }
+
+    public function unityFilter($gradeId = null, $subjectId = null)
+    {
+        $query = QuestionCategory::with(['grade', 'subject', 'unit', 'topic']);
+
+        if ($gradeId) {
+            $query->where('grade_id', $gradeId);
+        }
+
+        if ($subjectId) {
+            $query->where('subject_id', $subjectId);
+        }
+
+        return response()->json($query->get());
+    }
 }
+

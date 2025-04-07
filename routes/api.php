@@ -1,7 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\QuestionGroupController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\SubjectController;
+use App\Http\Controllers\Api\TopicController;
+use App\Http\Controllers\Api\UnitController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuestionCategoryController;
@@ -20,6 +24,12 @@ use App\Http\Controllers\Api\DashboardController;
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+Route::apiResource('grades', GradeController::class);
+Route::apiResource('subjects', SubjectController::class);
+Route::apiResource('units', UnitController::class);
+Route::apiResource('topics', TopicController::class);
+
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -69,12 +79,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Settings
     //Route::get('/settings', [SettingsController::class, 'index']);
     //Route::put('/settings', [SettingsController::class, 'update']);
-    Route::get('/settings', [App\Http\Controllers\Api\SettingsController::class, 'index']);
-    Route::put('/settings', [App\Http\Controllers\Api\SettingsController::class, 'update']);
-    Route::post('/settings/upload', [App\Http\Controllers\Api\SettingsController::class, 'uploadAd']);
+    Route::get('/settings', [SettingsController::class, 'index']);
+    Route::put('/settings', [SettingsController::class, 'update']);
+    Route::post('/settings/upload', [SettingsController::class, 'uploadAd']);
 
     // Reklam yönetimi için endpoint'ler
-    Route::apiResource('advertisements', App\Http\Controllers\Api\AdvertisementController::class);
+    Route::apiResource('advertisements', AdvertisementController::class);
 
     // Question Groups
     Route::apiResource('question-groups', QuestionGroupController::class);
