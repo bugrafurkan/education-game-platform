@@ -1,57 +1,91 @@
 <?php
-
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\QuestionCategory;
 use Illuminate\Support\Facades\DB;
 
 class QuestionCategorySeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
-    public function run(): void
+    public function run()
     {
-        // Veritabanı işlemlerini temiz tutmak için kategori tablosunu temizle
-        //DB::table('question_categories')->truncate();
+        $this->createGrades();
+        $this->createSubjects();
+        $this->createUnits();
+        $this->createTopics();
+    }
 
-        // Kategorileri oluştur
-        $categories = [
-            [
-                'name' => 'Matematik',
-                'grade' => '5-8',
-                'subject' => 'Matematik',
-                'unit' => 'Cebir'
-            ],
-            [
-                'name' => 'Fen Bilgisi',
-                'grade' => '5-8',
-                'subject' => 'Fen Bilgisi',
-                'unit' => 'Fizik'
-            ],
-            [
-                'name' => 'Tarih',
-                'grade' => '9-12',
-                'subject' => 'Sosyal Bilgiler',
-                'unit' => 'Türkiye Cumhuriyeti Tarihi'
-            ],
-            [
-                'name' => 'Türkçe',
-                'grade' => '5-8',
-                'subject' => 'Türkçe',
-                'unit' => 'Dilbilgisi'
-            ],
-            [
-                'name' => 'İngilizce',
-                'grade' => '5-8',
-                'subject' => 'Yabancı Dil',
-                'unit' => 'Gramer'
-            ],
-        ];
+    private function createGrades()
+    {
+        $grades = ['1-4', '5-8', '9-12', 'Üniversite', 'Anaokulu'];
 
-        foreach ($categories as $category) {
-            QuestionCategory::create($category);
+        foreach ($grades as $index => $grade) {
+            DB::table('grades')->updateOrInsert(
+                ['id' => $index + 1],
+                [
+                    'name' => $grade,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
         }
     }
+
+    private function createSubjects()
+    {
+        $subjects = [
+            'Matematik', 'Fen Bilgisi', 'Sosyal Bilgiler', 'Türkçe',
+            'Yabancı Dil', 'Değerler', 'İngilizce', 'Tarih', 'Fizik',
+            'özel', 'Çok özel'
+        ];
+
+        foreach ($subjects as $index => $subject) {
+            DB::table('subjects')->updateOrInsert(
+                ['id' => $index + 1],
+                [
+                    'name' => $subject,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+    }
+
+    private function createUnits()
+    {
+        $units = [
+            'Cebir', 'Fizik', 'Türkiye Cumhuriyeti Tarihi', 'Dilbilgisi',
+            'Gramer', 'Doğal Taşlar', 'Bölüm 3 doğal sayılar', 'taş'
+        ];
+
+        foreach ($units as $index => $unit) {
+            DB::table('units')->updateOrInsert(
+                ['id' => $index + 1],
+                [
+                    'name' => $unit,
+                    'grade_id' => 1,      // geçici
+                    'subject_id' => 1,    // geçici
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+    }
+
+    private function createTopics()
+    {
+        $topics = ['Temel Konular', 'İleri Konular', 'Özel Konular'];
+
+        foreach ($topics as $index => $topic) {
+            DB::table('topics')->updateOrInsert(
+                ['id' => $index + 1],
+                [
+                    'name' => $topic,
+                    'unit_id' => 1, // geçici
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+    }
+
 }

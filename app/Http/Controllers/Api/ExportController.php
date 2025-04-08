@@ -4,142 +4,229 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Export;
-use App\Models\Game;
+use App\Models\QuestionGroup;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 
 class ExportController extends Controller
 {
-    /**
-     * Display a listing of exports.
-     */
-    public function index(Request $request)
+    public function createAndTriggerBuild(Request $request)
     {
-        $exports = Export::with(['game', 'creator'])
-            ->latest()
-            ->paginate(20);
-
-        return response()->json($exports);
-    }
-
-    /**
-     * Store a newly created export.
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
+        $request->validate([
+            'question_group_id' => 'required|exists:question_groups,id',
             'game_id' => 'required|exists:games,id',
         ]);
 
-        $game = Game::findOrFail($validated['game_id']);
+        // Soru grubu + soruları al
+        $group = QuestionGroup::with('questions.answers')->findOrFail($request->question_group_id);
 
-        // Check if game has questions
-        if ($game->questions()->count() === 0) {
-            return response()->json([
-                'message' => 'Game has no questions to export'
-            ], 400);
-        }
+        // JSON verisi oluştur
+        $questions = $group->questions->map(function ($question) {
+            $answers = $question->answers->map(function ($answer) {
+                return [
+                    'text' => $answer->answer_text,
+                    'is_correct' => $answer->is_correct,
+                    'image' => $answer->image_path ? asset('storage/' . $answer->image_path) : null,
+                ];
+            });
 
-        // Get latest version or start at 1.0
-        $latestExport = Export::where('game_id', $game->id)
-            ->orderBy('id', 'desc')
-            ->first();
+            return [
+                'id' => $question->id,
+                'text' => $question->question_text,
+                'type' => $question->question_type,
+                'difficulty' => $question->difficulty,
+                'image' => $question->image_path ? asset('storage/' . $question->image_path) : null,
+                'options' => $answers,
+            ];
+        });
 
-        $version = $latestExport ? $this->incrementVersion($latestExport->version) : '1.0';
+        $config = [
+            'group' => [
+                'id' => $group->id,
+                'name' => $group->name,
+            ],
+            'questions' => $questions,
+        ];
 
-        // Create the export
+        // Export kaydını oluştur
         $export = Export::create([
-            'game_id' => $game->id,
-            'version' => $version,
+            'question_group_id' => $group->id,
+            'game_id' => $request->game_id,
             'status' => 'pending',
-            'created_by' => $request->user()->id,
-            'config_snapshot' => json_decode($game->generateJsonConfig(), true),
+            'requested_at' => now(),
+            'config_snapshot' => $config,
         ]);
 
-        // Generate config file
-        $configPath = $export->generateConfigFile();
-        $downloadUrl = url("api/exports/{$export->id}/download");
+        // Burada Jenkins'e build isteği gönderilebilir (örnek)
+        /*
+        Http::asForm()->post(env('JENKINS_EXPORT_URL'), [
+        'token' => env('JENKINS_API_TOKEN'),
+        'EXPORT_ID' => $export->id,
+        'QUESTION_GROUP_ID' => $export->question_group_id,
+        'GAME_ID' => $export->game_id,
+    ]);
+        */
 
-        // Update the export with download URL
+        return response()->json([
+            'message' => 'Export kaydı oluşturuldu, build süreci başlatıldı.',
+            'export_id' => $export->id,
+        ]);
+    }
+
+    // Build tamamlandıktan sonra Jenkins bu metodu çağırabilir
+    public function markAsCompleted(Request $request)
+    {
+        $request->validate([
+            'export_id' => 'required|exists:exports,id',
+            'output_url' => 'required|url',
+        ]);
+
+        $export = Export::findOrFail($request->export_id);
         $export->update([
-            'download_url' => $downloadUrl,
-            'status' => 'completed'
+            'status' => 'done',
+            'output_url' => $request->output_url,
+            'completed_at' => now(),
         ]);
 
-        return response()->json($export, 201);
+        return response()->json(['message' => 'Export tamamlandı.']);
+    }
+
+    // Hata durumunda Jenkins burayı çağırabilir
+    public function markAsFailed(Request $request)
+    {
+        $request->validate([
+            'export_id' => 'required|exists:exports,id',
+            'error_message' => 'required|string',
+        ]);
+
+        $export = Export::findOrFail($request->export_id);
+        $export->update([
+            'status' => 'failed',
+            'error_message' => $request->error_message,
+        ]);
+
+        return response()->json(['message' => 'Export başarısız olarak işaretlendi.']);
     }
 
     /**
-     * Display the specified export.
+     * Tek bir export kaydını getir
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show(Export $export)
+    public function show($id)
     {
-        $export->load(['game', 'creator']);
+        $export = Export::findOrFail($id);
         return response()->json($export);
     }
 
     /**
-     * Upload an export to Fernus platform.
+     * Tüm export kayıtlarını getir (sayfalama ile)
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function uploadToFernus(Export $export)
+    public function index(Request $request)
     {
-        // Check if export is already complete
-        if ($export->status !== 'completed') {
-            return response()->json([
-                'message' => 'Export is not completed yet'
-            ], 400);
-        }
-
-        // Simulate Fernus upload
-        $result = $export->uploadToFernus();
-
-        if ($result) {
-            return response()->json([
-                'message' => 'Export uploaded to Fernus successfully',
-                'fernus_url' => $export->fernus_url
-            ]);
-        } else {
-            return response()->json([
-                'message' => 'Failed to upload export to Fernus'
-            ], 500);
-        }
+        $perPage = $request->input('per_page', 15);
+        $exports = Export::orderBy('created_at', 'desc')->paginate($perPage);
+        return response()->json($exports);
     }
 
     /**
-     * Download the export file.
+     * Export dosyasını indirme
+     *
+     * @param int $id
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
      */
-    public function download(Export $export)
+    public function download($id)
     {
-        $fileName = "game_{$export->game_id}_v{$export->version}.json";
-        $path = storage_path("app/exports/{$fileName}");
+        $export = Export::findOrFail($id);
 
-        if (!file_exists($path)) {
-            return response()->json([
-                'message' => 'Export file not found'
-            ], 404);
+        // Eğer output_url bir dosya yoluysa
+        if ($export->output_url && file_exists(public_path($export->output_url))) {
+            return response()->download(public_path($export->output_url));
         }
 
-        return response()->download($path, $fileName, [
-            'Content-Type' => 'application/json',
-            'Content-Disposition' => "attachment; filename={$fileName}"
+        // Eğer output_url bir URL ise, kullanıcıyı yönlendir
+        if ($export->output_url && filter_var($export->output_url, FILTER_VALIDATE_URL)) {
+            return response()->json([
+                'download_url' => $export->output_url
+            ]);
+        }
+
+        return response()->json([
+            'error' => 'İndirilebilir dosya bulunamadı.'
+        ], 404);
+    }
+
+
+
+    /**
+     * Export işlemini iptal et
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function cancel($id)
+    {
+        $export = Export::findOrFail($id);
+
+        // Sadece bekleyen veya işlemdeki exportlar iptal edilebilir
+        if (!in_array($export->status, ['pending', 'processing'])) {
+            return response()->json([
+                'error' => 'Sadece bekleyen veya işlemdeki exportlar iptal edilebilir.'
+            ], 400);
+        }
+
+        // Burada Jenkins'teki işi iptal etmek için ek adımlar olabilir
+
+        $export->update([
+            'status' => 'failed',
+            'error_message' => 'Export işlemi kullanıcı tarafından iptal edildi.'
+        ]);
+
+        return response()->json([
+            'message' => 'Export işlemi iptal edildi.'
         ]);
     }
 
     /**
-     * Increment version number (e.g., 1.0 -> 1.1, 1.9 -> 2.0)
+     * Export işlemini yeniden dene
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
      */
-    private function incrementVersion($version)
+    public function retry($id)
     {
-        $parts = explode('.', $version);
-        $major = (int) $parts[0];
-        $minor = (int) $parts[1];
+        $export = Export::findOrFail($id);
 
-        $minor++;
-        if ($minor >= 10) {
-            $major++;
-            $minor = 0;
+        // Sadece başarısız olan exportlar yeniden denenebilir
+        if ($export->status !== 'failed') {
+            return response()->json([
+                'error' => 'Sadece başarısız olan exportlar yeniden denenebilir.'
+            ], 400);
         }
 
-        return "{$major}.{$minor}";
+        // Export durumunu güncelle
+        $export->update([
+            'status' => 'pending',
+            'error_message' => null
+        ]);
+
+        // Jenkins'e yeniden build isteği gönder
+        /*
+        Http::asForm()->post(env('JENKINS_EXPORT_URL'), [
+            'token' => env('JENKINS_API_TOKEN'),
+            'EXPORT_ID' => $export->id,
+            'QUESTION_GROUP_ID' => $export->question_group_id,
+            'GAME_ID' => $export->game_id,
+        ]);
+        */
+
+        return response()->json([
+            'message' => 'Export işlemi yeniden başlatıldı.',
+            'export' => $export
+        ]);
     }
 }

@@ -6,12 +6,12 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\TopicController;
 use App\Http\Controllers\Api\UnitController;
+use App\Http\Controllers\Api\ExportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuestionCategoryController;
 use App\Http\Controllers\Api\QuestionController;
 use App\Http\Controllers\Api\GameController;
-use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\AdvertisementController;
 use App\Http\Controllers\Api\DashboardController;
 
@@ -29,6 +29,11 @@ Route::apiResource('grades', GradeController::class);
 Route::apiResource('subjects', SubjectController::class);
 Route::apiResource('units', UnitController::class);
 Route::apiResource('topics', TopicController::class);
+
+// Exports
+Route::post('/exports', [ExportController::class, 'createAndTriggerBuild']);
+Route::post('/exports/complete', [ExportController::class, 'markAsCompleted']);
+Route::post('/exports/fail', [ExportController::class, 'markAsFailed']);
 
 
 // Protected routes
@@ -68,10 +73,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('games/{game}/iframe', [GameController::class, 'getIframeCode']);
 
     // Exports
-    Route::apiResource('exports', ExportController::class)->except(['update', 'destroy']);
-    Route::post('exports/{export}/upload-to-fernus', [ExportController::class, 'uploadToFernus']);
-    Route::get('exports/{export}/download', [ExportController::class, 'download']);
-
+    Route::post('/exports', [ExportController::class, 'createAndTriggerBuild']);
+    Route::post('/exports/complete', [ExportController::class, 'markAsCompleted']);
+    Route::post('/exports/fail', [ExportController::class, 'markAsFailed']);
     // Advertisements
     Route::apiResource('advertisements', AdvertisementController::class);
     Route::post('advertisements/upload-media', [AdvertisementController::class, 'uploadMedia']);
