@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class QuestionGroup extends Model
 {
@@ -15,7 +16,18 @@ class QuestionGroup extends Model
         'code',
         'question_type',
         'game_id',
+        'category_id', // Yeni kategori ID'si eklendi
         'created_by',
+        'image_path', // Görsel yolu eklendi
+    ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
+    protected $appends = [
+        'image_url',
     ];
 
     /**
@@ -49,11 +61,44 @@ class QuestionGroup extends Model
     }
 
     /**
+     * Görsel URL'sini döndüren erişimci
+     *
+     * @return string|null
+     */
+    public function getImageUrlAttribute()
+    {
+        if (!$this->image_path) {
+            return null;
+        }
+
+        // Eğer image_path zaten tam bir URL ise
+        if (filter_var($this->image_path, FILTER_VALIDATE_URL)) {
+            return $this->image_path;
+        }
+
+        // Eğer image_path 'public/' ile başlıyorsa
+        if (strpos($this->image_path, 'public/') === 0) {
+            return Storage::url(str_replace('public/', '', $this->image_path));
+        }
+
+        // Değilse normal yolla URL oluştur
+        return Storage::url($this->image_path);
+    }
+
+    /**
      * Oyun ilişkisi
      */
     public function game()
     {
         return $this->belongsTo(Game::class);
+    }
+
+    /**
+     * Kategori ilişkisi
+     */
+    public function category()
+    {
+        return $this->belongsTo(QuestionCategory::class, 'category_id');
     }
 
     /**

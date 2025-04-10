@@ -35,6 +35,9 @@ Route::post('/exports', [ExportController::class, 'createAndTriggerBuild']);
 Route::post('/exports/complete', [ExportController::class, 'markAsCompleted']);
 Route::post('/exports/fail', [ExportController::class, 'markAsFailed']);
 
+// Görsel yükleme endpoint'i
+Route::post('question-groups/upload-image', [QuestionGroupController::class, 'uploadImage']);
+
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
