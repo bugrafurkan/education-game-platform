@@ -19,6 +19,9 @@ class QuestionGroup extends Model
         'category_id', // Yeni kategori ID'si eklendi
         'created_by',
         'image_path', // Görsel yolu eklendi
+        'iframe_url',
+        'iframe_code',
+        'iframe_status',
     ];
 
     /**
@@ -118,5 +121,26 @@ class QuestionGroup extends Model
             ->withPivot('order')
             ->withTimestamps()
             ->orderBy('order');
+    }
+
+    /**
+     * İframe durumunu kontrol et
+     */
+    public function isIframeReady()
+    {
+        return $this->iframe_status === 'completed';
+    }
+
+    /**
+     * İframe durumu için insan tarafından okunabilir metin
+     */
+    public function getIframeStatusTextAttribute()
+    {
+        return [
+            'pending' => 'Henüz Oluşturulmadı',
+            'processing' => 'Oluşturuluyor...',
+            'completed' => 'Hazır',
+            'failed' => 'Hata Oluştu'
+        ][$this->iframe_status] ?? 'Bilinmiyor';
     }
 }

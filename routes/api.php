@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\GradeController;
+use App\Http\Controllers\Api\JenkinsController;
 use App\Http\Controllers\Api\QuestionGroupController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SubjectController;
@@ -38,9 +39,25 @@ Route::post('/exports/fail', [ExportController::class, 'markAsFailed']);
 // Görsel yükleme endpoint'i
 Route::post('question-groups/upload-image', [QuestionGroupController::class, 'uploadImage']);
 
+// Jenkins ile ilgili route'lar
+Route::prefix('jenkins')->group(function () {
+    // İframe oluşturma işlemini başlat
+    Route::post('create-iframe/{groupId}', [JenkinsController::class, 'createIframe'])
+        ->name('jenkins.create-iframe')
+        ->middleware('auth:api');
 
+    // Jenkins'ten gelen callback
+    Route::post('callback', [JenkinsController::class, 'jenkinsCallback'])
+        ->name('jenkins.callback');
+});
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('question-groups/{id}/create-iframe', 'App\Http\Controllers\Admin\QuestionGroupController@createIframe')
+        ->name('question-groups.create-iframe');
+
+    // İframe durumunu kontrol etme (AJAX)
+    Route::get('question-groups/{id}/check-iframe-status', 'App\Http\Controllers\Admin\QuestionGroupController@checkIframeStatus')
+        ->name('question-groups.check-iframe-status');
     // User
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -84,8 +101,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('advertisements/upload-media', [AdvertisementController::class, 'uploadMedia']);
 
     // Settings
-    //Route::get('/settings', [SettingsController::class, 'index']);
-    //Route::put('/settings', [SettingsController::class, 'update']);
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::put('/settings', [SettingsController::class, 'update']);
     Route::post('/settings/upload', [SettingsController::class, 'uploadAd']);
@@ -97,6 +112,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('question-groups', QuestionGroupController::class);
     Route::get('question-groups/code/{code}', [QuestionGroupController::class, 'getByCode']);
     Route::get('eligible-questions', [QuestionGroupController::class, 'getEligibleQuestions']);
+
+    Route::get('question-groups/{id}/export', [QuestionGroupController::class, 'exportForJenkins'])
+        ->name('api.question-groups.export');
 });
 
 // Public Game Access (For iframe embedding)

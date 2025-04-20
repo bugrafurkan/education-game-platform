@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\QuestionGroup;
 use App\Models\Question;
 use App\Models\Game;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -15,7 +18,7 @@ class QuestionGroupController extends Controller
 {
     /**
      * Tüm soru gruplarını listele
-     */
+
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10);
@@ -25,7 +28,43 @@ class QuestionGroupController extends Controller
             ->paginate($perPage);
 
         return response()->json($questionGroups);
+    }*/
+
+    public function index(Request $request)
+    {
+        $perPage = $request->input('per_page', 10);
+
+        $query = QuestionGroup::with(['game', 'creator', 'category'])
+            ->withCount('questions');
+
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        if ($request->filled('question_type')) {
+            $query->where('question_type', $request->question_type);
+        }
+
+        if ($request->filled('game_id')) {
+            $query->where('game_id', $request->game_id);
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('sort_field') && in_array($request->sort_field, ['name', 'question_type', 'game_id', 'created_at'])) {
+            $sortDirection = $request->input('sort_direction', 'desc') === 'asc' ? 'asc' : 'desc';
+            $query->orderBy($request->sort_field, $sortDirection);
+        } else {
+            $query->latest();
+        }
+
+        return response()->json(
+            $query->paginate($perPage)
+        );
     }
+
 
     /**
      * Yeni bir soru grubu oluştur
@@ -80,6 +119,7 @@ class QuestionGroupController extends Controller
             'category_id' => $validated['category_id'] ?? null,
             'created_by' => Auth::id(),
             'image_path' => $imagePath,
+            'iframe_status' => 'pending',
         ]);
 
         // Soruları gruba ekle
@@ -129,6 +169,7 @@ class QuestionGroupController extends Controller
             'question_ids.*' => 'exists:questions,id',
             'image' => 'nullable|image|max:2048',
             'remove_image' => 'nullable|boolean',
+            'iframe_status' => 'sometimes|in:pending,processing,completed,failed',
         ]);
 
         if ($validator->fails()) {
@@ -160,6 +201,10 @@ class QuestionGroupController extends Controller
 
             // Yeni görseli yükle
             $updateData['image_path'] = $request->file('image')->store('public/question_groups');
+        }
+
+        if (isset($validated['iframe_status']) && auth()->user()->isAdmin()) {
+            $updateData['iframe_status'] = $validated['iframe_status'];
         }
 
         // Grup verilerini güncelle
@@ -238,18 +283,25 @@ class QuestionGroupController extends Controller
         $validated = $request->validate([
             'game_id' => 'required|exists:games,id',
             'question_type' => 'required|in:multiple_choice,true_false,qa',
+            'category_id' => 'nullable|exists:categories,id',
         ]);
 
         $questions = Question::with(['category'])
             ->where('question_type', $validated['question_type'])
             ->whereHas('games', function ($query) use ($validated) {
                 $query->where('games.id', $validated['game_id']);
-            })
-            ->latest()
-            ->paginate(30);
+            });
 
-        return response()->json($questions);
+
+        if (!empty($validated['category_id'])) {
+            $questions->where('category_id', $validated['category_id']);
+        }
+
+        return response()->json(
+            $questions->latest()->paginate(30)
+        );
     }
+
 
     /**
      * Görsel yükleme endpoint'i
@@ -264,5 +316,95 @@ class QuestionGroupController extends Controller
         $url = Storage::url($path);
 
         return response()->json(['url' => $url]);
+    }
+
+    /**
+     * İframe oluşturma işlemini başlat
+     *
+     * @param  int  $id
+     * @return RedirectResponse
+     */
+    public function createIframe($id)
+    {
+        $jenkinsController = app(JenkinsController::class);
+        $response = $jenkinsController->createIframe($id);
+
+        if ($response->original['success']) {
+            return redirect()->route('admin.question-groups.show', $id)
+                ->with('success', 'İframe oluşturma işlemi başlatıldı. Bu işlem birkaç dakika sürebilir.');
+        } else {
+            return redirect()->route('admin.question-groups.show', $id)
+                ->with('error', 'İframe oluşturulamadı: ' . $response->original['message']);
+        }
+    }
+
+    /**
+     * İframe durumunu kontrol et (AJAX)
+     *
+     * @param  int  $id
+     * @return JsonResponse
+     */
+    public function checkIframeStatus($id)
+    {
+        $questionGroup = QuestionGroup::findOrFail($id);
+
+        return response()->json([
+            'status' => $questionGroup->iframe_status,
+            'statusText' => $questionGroup->iframe_status_text,
+            'isReady' => $questionGroup->isIframeReady(),
+            'iframe_code' => $questionGroup->iframe_code
+        ]);
+    }
+
+    /**
+     * Soru grubu verilerini Jenkins için JSON formatında dışa aktar
+     */
+    public function exportForJenkins($id, Request $request)
+    {
+        // API token kontrolü
+        $providedToken = $request->header('Authorization');
+        if (!$providedToken || strpos($providedToken, 'Bearer ') !== 0) {
+            return response()->json(['error' => 'Invalid token format'], 401);
+        }
+
+        $token = substr($providedToken, 7); // "Bearer " kısmını kaldır
+
+        // Soru grubunu al
+        $questionGroup = QuestionGroup::with(['questions.answers', 'category', 'game'])
+            ->findOrFail($id);
+
+        // Veriyi hazırla
+        $data = [
+            'id' => $questionGroup->id,
+            'code' => $questionGroup->code,
+            'name' => $questionGroup->name,
+            'question_type' => $questionGroup->question_type,
+            'game' => [
+                'id' => $questionGroup->game->id,
+                'name' => $questionGroup->game->name,
+            ],
+            'category' => $questionGroup->category ? [
+                'id' => $questionGroup->category->id,
+                'name' => $questionGroup->category->name,
+            ] : null,
+            'questions' => $questionGroup->questions->map(function ($question) {
+                return [
+                    'id' => $question->id,
+                    'text' => $question->question_text,
+                    'type' => $question->question_type,
+                    'image_path' => $question->image_path,
+                    'answers' => $question->answers->map(function ($answer) {
+                        return [
+                            'id' => $answer->id,
+                            'text' => $answer->answer_text,
+                            'is_correct' => $answer->is_correct,
+                            'image_path' => $answer->image_path,
+                        ];
+                    }),
+                ];
+            }),
+        ];
+
+        return response()->json($data);
     }
 }
